@@ -1,6 +1,8 @@
-Flask
-gunicorn
-pandas
-networkx
-pymongo
-dnspythonpy
+Flask==3.0.2
+pandas==2.2.0
+networkx==3.2.1
+pymongo==4.6.1
+dnspython==2.6.1
+python-dotenv==1.0.1
+numpy==1.26.4
+gunicorn==21.2.0
