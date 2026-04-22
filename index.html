@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Prashant Tiwari">
+    <title>FinForensics | Graph Engine</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            FinForensics
+        </div>
+        <div class="nav-links">
+            <a href="#" class="active" onclick="switchView('landing', this)">Home</a>
+            <a href="#" onclick="switchView('upload-view', this)">Analyze</a>
+            <a href="#" onclick="switchView('dashboard-view', this)">Dashboard</a>
+            <a href="#" onclick="loadHistory(this)">History</a>
+        </div>
+        <div class="nav-actions">
+            <span class="status-badge" id="app-status">Ready</span>
+        </div>
+    </nav>
+
+    <section id="landing" class="view active-view center-content">
+        <div class="hero-text">
+            <h4>⚡ Financial Forensics Engine</h4>
+            <h1>Follow the Money.<br><span class="text-red">Expose the Network.</span></h1>
+            <p>FinForensics tells you <span class="text-red">WHY</span>, <span class="text-orange">HOW</span>, and <span class="text-green">WHO TO ARREST FIRST</span>.</p>
+            <button class="btn-primary mt-2" onclick="switchView('upload-view')">Start Analysis &rarr;</button>
+        </div>
+    </section>
+
+    <section id="upload-view" class="view center-content hidden">
+        <div class="upload-card">
+            <h2>Upload Data</h2>
+            <p class="subtitle">Import CSV files for fraud ring analysis</p>
+            
+            <form id="uploadForm">
+                <div class="drop-zone" id="dropZone">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <p>Drag and drop your CSV file here</p>
+                    <span class="or-text">or</span>
+                    <label class="btn-secondary" for="fileInput">Browse Files</label>
+                    <input type="file" name="file" id="fileInput" accept=".csv" required style="display: none;">
+                </div>
+                <div id="fileInfo" class="mt-1 hidden text-center text-sm text-gray"></div>
+                <button type="submit" class="btn-primary mt-2 w-full hidden" id="analyzeBtn">Analyze Network</button>
+            </form>
+
+            <div class="requirements-box mt-2">
+                <strong>! Required columns</strong>
+                <p>transaction_id, sender_id, receiver_id, amount, timestamp</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="processing-view" class="view center-content hidden">
+        <div class="upload-card">
+            <h2 class="mb-2 flex-between">Processing Data... <span id="timer" class="text-red">0.0s</span></h2>
+            <div class="process-step active" id="step1">📄 Parsing CSV...</div>
+            <div class="process-step" id="step2">🕸️ Building Graph...</div>
+            <div class="process-step" id="step3">🔍 Running Detectors...</div>
+            <div class="process-step" id="step4">📊 Scoring Accounts...</div>
+        </div>
+    </section>
+
+    <section id="dashboard-view" class="view hidden">
+        <div class="container">
+            <div class="kpi-strip">
+                <div class="kpi-card"><span class="label">👥 Accounts Analyzed</span><h2 id="accounts-kpi" class="text-blue">0</h2></div>
+                <div class="kpi-card"><span class="label">🚨 Suspicious Flagged</span><h2 id="suspicious-kpi" class="text-red">0</h2></div>
+                <div class="kpi-card"><span class="label">📈 Fraud Rings Detected</span><h2 id="rings-kpi" class="text-orange">0</h2></div>
+                <div class="kpi-card"><span class="label">⏱️ Processing Time</span><h2 id="time-kpi" class="text-green">0.0s</h2></div>
+            </div>
+
+            <div class="main-content-grid">
+                <div class="graph-container">
+                    <div class="panel-header">
+                        <h3>Network Visualization</h3>
+                        <span id="graph-stats" class="text-sm text-gray"></span>
+                    </div>
+                    <div id="network"></div>
+                </div>
+
+                <div class="side-panel">
+                    <div id="default-side">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <p class="mt-1">Click any node to investigate</p>
+                    </div>
+
+                    <div id="node-details" class="hidden">
+                        <h3 id="node-title" class="text-red mb-1">ACC_ID</h3>
+                        <div class="score-container mb-2">
+                            <div class="score-circle"><span id="node-score" class="score-value">0</span><span class="score-max">/100</span></div>
+                            <div id="node-stage" class="stage-badge mt-1">Stage</div>
+                        </div>
+                        <div class="detail-section"><h4>🔗 Ring Affiliation</h4><span id="node-ring" class="text-blue">None</span></div>
+                        <div class="detail-section"><h4>🏷️ Detected Patterns</h4><div id="node-patterns" class="pattern-tags"></div></div>
+                        <div class="detail-section ai-narrative"><h4>🤖 AI Investigator Narrative</h4><p id="node-narrative">Narrative loading...</p></div>
+                    </div>
+                    <button id="downloadBtn" class="btn-green w-full mt-2" onclick="window.location.href='/download'">⬇ Download JSON Report</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="history-view" class="view hidden">
+        <div class="container" style="max-width: 1000px;">
+            <div class="panel-header mb-2">
+                <h2>Analysis History</h2>
+                <button class="btn-primary" onclick="switchView('upload-view')">New Analysis +</button>
+            </div>
+            <div id="history-list"></div>
+        </div>
+    </section>
+
+    <script>
+        let currentAnalysis = null;
+        let networkGraph = null;
+
+        // View Management with strict safety
+        function switchView(viewId, navElement = null) {
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            const targetView = document.getElementById(viewId);
+            if(targetView) targetView.classList.remove('hidden');
+            
+            if (navElement) {
+                document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+                navElement.classList.add('active');
+            }
+        }
+
+        // File Upload Handlers
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const uploadForm = document.getElementById('uploadForm');
+
+        if (dropZone) {
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault(); dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; updateFileInfo(); }
+            });
+        }
+
+        if (fileInput) {
+            fileInput.addEventListener('change', updateFileInfo);
+        }
+
+        function updateFileInfo() {
+            if (fileInput && fileInput.files.length > 0) {
+                fileInfo.textContent = `Selected: ${fileInput.files[0].name}`;
+                fileInfo.classList.remove('hidden');
+                analyzeBtn.classList.remove('hidden');
+            }
+        }
+
+        // Form Submission & Analysis
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(uploadForm);
+                
+                switchView('processing-view');
+                const statusBadge = document.getElementById('app-status');
+                statusBadge.textContent = 'Analyzing Active';
+                statusBadge.style.color = 'var(--accent-green)';
+                statusBadge.style.borderColor = 'var(--accent-green)';
+
+                let startTime = Date.now();
+                let timerInt = setInterval(() => { document.getElementById('timer').textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's'; }, 100);
+
+                setTimeout(() => { document.getElementById('step1').classList.remove('active'); document.getElementById('step2').classList.add('active'); }, 800);
+                setTimeout(() => { document.getElementById('step2').classList.remove('active'); document.getElementById('step3').classList.add('active'); }, 1800);
+                setTimeout(() => { document.getElementById('step3').classList.remove('active'); document.getElementById('step4').classList.add('active'); }, 2600);
+
+                try {
+                    const res = await fetch("/upload", { method: "POST", body: formData });
+                    const data = await res.json();
+                    
+                    clearInterval(timerInt);
+                    
+                    if (!res.ok || data.error) {
+                        throw new Error(data.error || `Server returned status ${res.status}`);
+                    }
+
+                    currentAnalysis = data.analysis;
+                    
+                    setTimeout(() => {
+                        switchView('dashboard-view');
+                        // Crucial delay to allow DOM to paint before rendering graph
+                        setTimeout(() => { updateDashboardUI(currentAnalysis, data.graph); }, 300);
+                    }, 500);
+
+                } catch (error) {
+                    clearInterval(timerInt);
+                    alert("UPLOAD FAILED:\n\n" + error.message);
+                    switchView('upload-view');
+                }
+            });
+        }
+
+        // Dashboard Population
+        function updateDashboardUI(analysis, graphData) {
+            if(!analysis || !graphData) return;
+            
+            document.getElementById('accounts-kpi').textContent = analysis.summary.total_accounts_analyzed;
+            document.getElementById('suspicious-kpi').textContent = analysis.summary.suspicious_accounts_flagged;
+            document.getElementById('rings-kpi').textContent = analysis.summary.fraud_rings_detected;
+            document.getElementById('time-kpi').textContent = analysis.summary.processing_time_seconds + 's';
+            document.getElementById('graph-stats').textContent = `${graphData.nodes.length} nodes · ${graphData.edges.length} edges`;
+            
+            renderGraph(graphData);
+        }
+
+        // Network Visualization
+        function renderGraph(graphData) {
+            const container = document.getElementById("network");
+            if(!container) return;
+
+            // Force strict styling rules on the canvas container
+            container.style.height = "550px"; 
+            container.style.width = "100%";
+            container.style.display = "block";
+            
+            const visData = { 
+                nodes: new vis.DataSet(graphData.nodes), 
+                edges: new vis.DataSet(graphData.edges) 
+            };
+
+            const options = {
+                nodes: { shape: 'dot', borderWidth: 2, borderWidthSelected: 4, font: { face: 'Inter', size: 12, strokeColor: '#0b1120' } },
+                edges: { arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'continuous' } },
+                layout: { improvedLayout: false },
+                physics: { barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 95 }, stabilization: { iterations: 150 } },
+                interaction: { hover: true, tooltipDelay: 200 }
+            };
+
+            if (networkGraph !== null) networkGraph.destroy();
+            
+            networkGraph = new vis.Network(container, visData, options);
+            
+            // Force Redraw Protocol
+            setTimeout(() => { 
+                networkGraph.redraw(); 
+                networkGraph.fit(); 
+            }, 300);
+
+            networkGraph.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const accData = currentAnalysis.suspicious_accounts.find(a => String(a.account_id) === String(nodeId));
+                    
+                    document.getElementById('default-side').classList.add('hidden');
+                    document.getElementById('node-details').classList.remove('hidden');
+
+                    if(accData) {
+                        document.getElementById('node-title').textContent = accData.account_id;
+                        document.getElementById('node-score').textContent = accData.suspicion_score;
+                        const color = accData.suspicion_score >= 85 ? 'var(--accent-red)' : 'var(--accent-orange)';
+                        document.getElementById('node-title').style.color = color;
+                        document.querySelector('.score-circle').style.color = color;
+                        const stageBadge = document.getElementById('node-stage');
+                        stageBadge.textContent = accData.lifecycle_stage;
+                        stageBadge.style.color = color;
+                        stageBadge.style.borderColor = color;
+                        stageBadge.style.backgroundColor = accData.suspicion_score >= 85 ? 'var(--accent-red-bg)' : 'rgba(245, 158, 11, 0.1)';
+                        document.getElementById('node-ring').textContent = accData.ring_id || 'None';
+                        
+                        const tagsContainer = document.getElementById('node-patterns');
+                        tagsContainer.innerHTML = '';
+                        accData.detected_patterns.forEach(p => {
+                            const span = document.createElement('span');
+                            span.className = 'tag'; span.textContent = p; tagsContainer.appendChild(span);
+                        });
+                        document.getElementById('node-narrative').textContent = accData.ai_narrative;
+                    } else {
+                        document.getElementById('node-title').textContent = nodeId;
+                        document.getElementById('node-score').textContent = "0";
+                        document.getElementById('node-stage').textContent = "Legitimate Account";
+                        document.getElementById('node-stage').style.color = "var(--text-muted)";
+                        document.getElementById('node-stage').style.borderColor = "var(--text-muted)";
+                        document.getElementById('node-stage').style.backgroundColor = "transparent";
+                        document.getElementById('node-ring').textContent = "N/A";
+                        document.getElementById('node-patterns').innerHTML = "<span class='tag'>None</span>";
+                        document.getElementById('node-narrative').textContent = "Standard transaction behavior. No anomalous flow or cycles detected.";
+                    }
+                }
+            });
+        }
+
+        // History Management
+        async function loadHistory(navElement = null) {
+            switchView('history-view', navElement);
+            const container = document.getElementById('history-list');
+            container.innerHTML = '<p class="text-center text-gray mt-2">Loading past analyses...</p>';
+
+            try {
+                const res = await fetch('/history');
+                const data = await res.json();
+                container.innerHTML = '';
+                
+                if(data.length === 0) {
+                    container.innerHTML = '<p class="text-center text-gray mt-2">No past analyses found in database.</p>';
+                    return;
+                }
+
+                data.forEach(item => {
+                    const date = new Date(item.created_at * 1000).toLocaleString();
+                    const div = document.createElement('div');
+                    div.className = 'upload-card w-full flex-between mb-1'; 
+                    div.style.padding = '1.5rem'; div.style.cursor = 'pointer';
+                    div.innerHTML = `
+                        <div>
+                            <h4 class="text-blue" style="margin-bottom: 5px;">Analysis run on: ${date}</h4>
+                            <p class="text-sm text-gray">👥 ${item.analysis.summary.total_accounts_analyzed} accounts | 🚨 ${item.analysis.summary.suspicious_accounts_flagged} flagged | 📈 ${item.analysis.summary.fraud_rings_detected} rings</p>
+                        </div>
+                        <button class="btn-secondary">Load Graph &rarr;</button>
+                    `;
+                    div.onclick = () => loadHistoryItem(item._id);
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                container.innerHTML = '<p class="text-red text-center mt-2">Failed to load history from database.</p>';
+            }
+        }
+
+        async function loadHistoryItem(id) {
+            switchView('processing-view'); 
+            try {
+                const res = await fetch(`/history/${id}`);
+                const full = await res.json();
+                currentAnalysis = full.analysis;
+                setTimeout(() => { 
+                    switchView('dashboard-view'); 
+                    setTimeout(() => { updateDashboardUI(currentAnalysis, full.graph); }, 300); 
+                }, 500);
+            } catch (error) {
+                alert('Failed to load this record.'); switchView('history-view');
+            }
+        }
+    </script>
+</body>
+</html>
